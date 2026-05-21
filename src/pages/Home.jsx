@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowUpRight, CheckCircle, ChevronRight, Quote, MapPin, Mail, Phone, Play } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, CheckCircle, ChevronRight, Quote, MapPin, Mail, Phone } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import HeroSlider from '../components/HeroSlider'
 
 /* ── Animated counter hook ─────────────────── */
 function useCounter(target, duration = 2000, start = false) {
@@ -83,59 +84,8 @@ export default function Home() {
   return (
     <main>
 
-      {/* ── HERO ─────────────────────────────── */}
-      <section className="relative min-h-screen flex items-center overflow-hidden">
-        {/* Background image */}
-        <div className="absolute inset-0">
-          <img
-            src="/hero-office.jpeg"
-            alt="ACN Team"
-            className="w-full h-full object-cover object-center"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0A2463]/90 via-[#0A2463]/70 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0A2463]/60 via-transparent to-transparent" />
-        </div>
-
-        {/* Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-6 pt-32 pb-20 w-full">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 bg-yellow-400/20 border border-yellow-400/40 backdrop-blur-sm rounded-full px-4 py-2 mb-6 animate-fadeInUp">
-              <span className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-              <span className="text-yellow-300 text-sm font-semibold tracking-wide">African Capability Network</span>
-            </div>
-
-            <h1 className="text-5xl lg:text-7xl font-black text-white leading-tight mb-6 animate-fadeInUp delay-100">
-              Développer<br />
-              <span className="text-yellow-400">l'excellence</span><br />
-              africaine
-            </h1>
-
-            <p className="text-sky-100 text-lg lg:text-xl leading-relaxed mb-10 max-w-lg animate-fadeInUp delay-200">
-              Leader africain en développement des compétences professionnelles.
-              Formations certifiantes, conseil stratégique et accompagnement sur mesure.
-            </p>
-
-            <div className="flex flex-wrap gap-4 animate-fadeInUp delay-300">
-              <Link to="/expertise" className="btn-gold flex items-center gap-2 text-sm">
-                Découvrir nos formations <ArrowRight size={16} />
-              </Link>
-              <Link
-                to="/a-propos"
-                className="flex items-center gap-2 text-white border border-white/40 hover:border-yellow-400 hover:text-yellow-400 font-bold px-6 py-3 rounded-full transition-all text-sm backdrop-blur-sm"
-              >
-                <Play size={14} fill="currentColor" /> Notre histoire
-              </Link>
-            </div>
-          </div>
-        </div>
-
-        {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 animate-bounce">
-          <div className="w-6 h-10 border-2 border-white/40 rounded-full flex justify-center pt-2">
-            <div className="w-1 h-2 bg-white/60 rounded-full" />
-          </div>
-        </div>
-      </section>
+      {/* ── HERO SLIDER ──────────────────────── */}
+      <HeroSlider />
 
       {/* ── OFFRE D'EMPLOI ───────────────────── */}
       <section className="bg-[#0A2463] py-8 px-4">
