@@ -51,7 +51,7 @@ const formations = [
   { title: 'Gestion Administrative', desc: 'Maîtrisez les outils modernes de gestion pour piloter votre organisation avec efficacité.', img: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&q=80', color: 'from-sky-600 to-blue-800' },
   { title: 'Développement RH', desc: 'Renforcez vos compétences en gestion des talents et développement des équipes africaines.', img: '/team-training.png', color: 'from-indigo-600 to-purple-800' },
   { title: 'Gestion du Changement', desc: 'Conduisez les transformations organisationnelles avec méthode et leadership affirmé.', img: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=600&q=80', color: 'from-emerald-600 to-teal-800' },
-  { title: 'Leadership Stratégique', desc: 'Développez un leadership visionnaire pour inspirer et mobiliser vos équipes vers l\'excellence.', img: '/hero-capability.png', color: 'from-amber-600 to-orange-800' },
+  { title: 'Leadership Stratégique', desc: 'Développez un leadership visionnaire pour inspirer et mobiliser vos équipes vers l\'excellence.', img: '/image_ca.png', color: 'from-amber-600 to-orange-800' },
 ]
 
 const testimonials = [
@@ -121,7 +121,7 @@ export default function Home() {
           <div className={`relative transition-all duration-1000 ${whyInView ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-16'}`}>
             <div className="relative z-10 rounded-3xl overflow-hidden shadow-2xl">
               <img
-                src="/hero-capability.png"
+                src="/image_ca.png"
                 alt="Pourquoi ACN"
                 className="w-full h-[480px] object-cover"
               />

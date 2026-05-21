@@ -27,7 +27,7 @@ const slides = [
   },
   {
     id: 3,
-    img: '/hero-capability.png',
+    img: '/image_ca.png',
     tag: 'Conseil Stratégique',
     title: ['Transformez', 'votre', 'organisation'],
     titleHighlight: 0,
