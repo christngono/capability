@@ -43,15 +43,15 @@ const stats = [
 const expertiseItems = [
   { title: 'Haut service sur mesure', desc: 'Des solutions personnalisées adaptées aux besoins spécifiques de chaque organisation.', img: 'https://images.unsplash.com/photo-1573497620053-ea5300f94f21?w=500&q=80', icon: '🎯' },
   { title: 'Qualité & Excellence', desc: 'Des standards internationaux appliqués au contexte africain pour des résultats durables.', img: 'https://images.unsplash.com/photo-1556761175-4b46a572b786?w=500&q=80', icon: '⭐' },
-  { title: 'Haut professionnalisme', desc: "Une équipe d'experts certifiés avec une expérience terrain reconnue.", img: '/team-training.png', icon: '🏆' },
+  { title: 'Haut professionnalisme', desc: "Une équipe d'experts certifiés avec une expérience terrain reconnue.", img: '/team-training.webp', icon: '🏆' },
   { title: "L'intégrité", desc: 'Une éthique irréprochable et une transparence totale dans toutes nos interventions.', img: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=500&q=80', icon: '🤝' },
 ]
 
 const formations = [
   { title: 'Gestion Administrative', desc: 'Maîtrisez les outils modernes de gestion pour piloter votre organisation avec efficacité.', img: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&q=80', color: 'from-sky-600 to-blue-800' },
-  { title: 'Développement RH', desc: 'Renforcez vos compétences en gestion des talents et développement des équipes africaines.', img: '/team-training.png', color: 'from-indigo-600 to-purple-800' },
+  { title: 'Développement RH', desc: 'Renforcez vos compétences en gestion des talents et développement des équipes africaines.', img: '/team-training.webp', color: 'from-indigo-600 to-purple-800' },
   { title: 'Gestion du Changement', desc: 'Conduisez les transformations organisationnelles avec méthode et leadership affirmé.', img: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=600&q=80', color: 'from-emerald-600 to-teal-800' },
-  { title: 'Leadership Stratégique', desc: 'Développez un leadership visionnaire pour inspirer et mobiliser vos équipes vers l\'excellence.', img: '/image_ca.png', color: 'from-amber-600 to-orange-800' },
+  { title: 'Leadership Stratégique', desc: 'Développez un leadership visionnaire pour inspirer et mobiliser vos équipes vers l\'excellence.', img: '/image_ca.webp', color: 'from-amber-600 to-orange-800' },
 ]
 
 const testimonials = [
@@ -121,8 +121,9 @@ export default function Home() {
           <div className={`relative transition-all duration-1000 ${whyInView ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-16'}`}>
             <div className="relative z-10 rounded-3xl overflow-hidden shadow-2xl">
               <img
-                src="/image_ca.png"
+                src="/image_ca.webp"
                 alt="Pourquoi ACN"
+                loading="lazy"
                 className="w-full h-[480px] object-cover"
               />
               {/* Floating card */}
@@ -192,7 +193,7 @@ export default function Home() {
                 style={{ transitionDelay: `${i * 120}ms` }}
               >
                 <div className="overflow-hidden h-52">
-                  <img src={img} alt={title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  <img src={img} alt={title} loading="lazy" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0A2463]/80 via-[#0A2463]/20 to-transparent" />
                 </div>
                 <div className="absolute top-4 right-4 w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center text-lg shadow-lg">
@@ -227,7 +228,7 @@ export default function Home() {
                 `}
                 style={{ transitionDelay: `${i * 100}ms` }}
               >
-                <img src={img} alt={title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                <img src={img} alt={title} loading="lazy" className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                 <div className={`absolute inset-0 bg-gradient-to-br ${color} opacity-80 group-hover:opacity-70 transition-opacity`} />
                 <div className="absolute inset-0 p-8 flex flex-col justify-end">
                   <h3 className="text-white font-black text-xl mb-2">{title}</h3>
@@ -271,7 +272,7 @@ export default function Home() {
                 <Quote size={36} className="text-yellow-400 mb-4" />
                 <p className="text-gray-700 leading-relaxed mb-8 text-sm italic">"{text}"</p>
                 <div className="flex items-center gap-4 mt-auto">
-                  <img src={img} alt={name} className="w-12 h-12 rounded-full object-cover border-2 border-yellow-400" />
+                  <img src={img} alt={name} loading="lazy" className="w-12 h-12 rounded-full object-cover border-2 border-yellow-400" />
                   <div>
                     <p className="font-black text-[#0A2463] text-sm">{name}</p>
                     <p className="text-gray-500 text-xs">{role}</p>

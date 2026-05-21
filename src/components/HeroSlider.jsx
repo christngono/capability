@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom'
 const slides = [
   {
     id: 1,
-    img: '/hero-office.jpeg',
+    img: '/hero-office.webp',
     tag: 'African Capability Network',
     title: ['Développer', "l'excellence", 'africaine'],
     titleHighlight: 1,
@@ -16,7 +16,7 @@ const slides = [
   },
   {
     id: 2,
-    img: '/team-training.png',
+    img: '/team-training.webp',
     tag: 'Formations Certifiantes',
     title: ['Formez', 'vos équipes', 'aux standards mondiaux'],
     titleHighlight: 2,
@@ -27,7 +27,7 @@ const slides = [
   },
   {
     id: 3,
-    img: '/image_ca.png',
+    img: '/image_ca.webp',
     tag: 'Conseil Stratégique',
     title: ['Transformez', 'votre', 'organisation'],
     titleHighlight: 0,
@@ -102,6 +102,8 @@ export default function HeroSlider() {
           <img
             src={s.img}
             alt=""
+            loading={i === 0 ? 'eager' : 'lazy'}
+            fetchPriority={i === 0 ? 'high' : 'low'}
             className="w-full h-full object-cover object-center"
             style={{
               transform: i === current ? 'scale(1.08)' : 'scale(1)',
