@@ -25,7 +25,7 @@ export default function Expertise() {
           {formations.map(({ title, desc, img }) => (
             <div key={title} className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100">
               <div className="overflow-hidden h-48">
-                <img src={img} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <img src={img} alt={title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               </div>
               <div className="p-6">
                 <h3 className="font-black text-gray-800 text-lg mb-2">{title}</h3>
