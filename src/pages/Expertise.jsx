@@ -7,7 +7,6 @@ const formations = [
   { title: 'Gestion du Changement', desc: 'Accompagnez votre organisation dans les transitions et transformations grâce à des méthodes éprouvées de conduite du changement.', img: 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=400&q=80' },
   { title: 'Leadership & Management', desc: 'Renforcez vos capacités de leadership pour inspirer, motiver et diriger efficacement vos équipes vers l\'excellence.', img: 'https://images.unsplash.com/photo-1600880292203-757bb62b4baf?w=400&q=80' },
   { title: 'Finance & Comptabilité', desc: 'Acquérez les compétences financières essentielles pour piloter efficacement la performance de votre entreprise.', img: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400&q=80' },
-  { title: 'Marketing Digital', desc: 'Maîtrisez les outils du marketing numérique pour développer la présence en ligne et la croissance de votre organisation.', img: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400&q=80' },
 ]
 
 export default function Expertise() {
