@@ -1,0 +1,545 @@
+import { useState, useEffect, useRef } from "react"
+import { useNavigate } from "react-router-dom"
+import {
+  PlusCircle, ClipboardList, BarChart2, LogOut,
+  Copy, Trash2, Eye, Download, ToggleLeft, ToggleRight,
+} from "lucide-react"
+import { SurveyCreatorComponent, SurveyCreator } from "survey-creator-react"
+import { Model } from "survey-core"
+import { Survey } from "survey-react-ui"
+import {
+  collection, doc, addDoc, getDocs, getDoc, updateDoc, deleteDoc,
+  serverTimestamp, query, orderBy,
+} from "firebase/firestore"
+import { db } from "@/firebase"
+
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+} from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
+
+/* ── Options du Creator SurveyJS ─────────────────────────── */
+const creatorOptions = {
+  showLogicTab: false,
+  showTranslationTab: false,
+  showJSONEditorTab: false,
+  isAutoSave: false,
+  showPreviewTab: true,
+  questionTypes: ["text", "radiogroup", "checkbox", "rating", "comment"],
+}
+
+/* ── Utilitaire : formater une date Firestore ───────────── */
+function formatDate(ts) {
+  if (!ts) return "—"
+  const d = ts.toDate ? ts.toDate() : new Date(ts)
+  return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })
+}
+
+/* ── Générer le lien candidat ───────────────────────────── */
+function lienEvaluation(testId) {
+  return `${window.location.origin}/evaluation/${testId}`
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TAB 1 — CRÉER UN TEST
+═══════════════════════════════════════════════════════════ */
+function TabCreerTest() {
+  const [titre, setTitre] = useState("")
+  const [duree, setDuree] = useState(30)
+  const [sauvegarde, setSauvegarde] = useState(false)
+  const [lienGenere, setLienGenere] = useState("")
+  const [copie, setCopie] = useState(false)
+  const creatorRef = useRef(null)
+
+  if (!creatorRef.current) {
+    creatorRef.current = new SurveyCreator(creatorOptions)
+  }
+  const creator = creatorRef.current
+
+  async function handleSauvegarder() {
+    if (!titre.trim()) { alert("Veuillez saisir un titre pour le test."); return }
+    if (!duree || duree < 1) { alert("Veuillez saisir une durée valide."); return }
+
+    const surveyJSON = creator.JSON
+    const pages = surveyJSON.pages || []
+    const nombreQuestions = pages.reduce(
+      (acc, p) => acc + (p.elements ? p.elements.length : 0), 0
+    )
+
+    const docRef = await addDoc(collection(db, "tests"), {
+      titre: titre.trim(),
+      duree: Number(duree),
+      surveyJSON,
+      createdAt: serverTimestamp(),
+      actif: true,
+      nombreQuestions,
+    })
+
+    setLienGenere(lienEvaluation(docRef.id))
+    setSauvegarde(true)
+  }
+
+  function handleCopier() {
+    navigator.clipboard.writeText(lienGenere)
+    setCopie(true)
+    setTimeout(() => setCopie(false), 2000)
+  }
+
+  function handleNouveauTest() {
+    setSauvegarde(false)
+    setLienGenere("")
+    setTitre("")
+    setDuree(30)
+    creatorRef.current = new SurveyCreator(creatorOptions)
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
+        <div className="space-y-1.5">
+          <Label htmlFor="titre-test">Titre du test *</Label>
+          <Input
+            id="titre-test"
+            value={titre}
+            onChange={(e) => setTitre(e.target.value)}
+            placeholder="Ex : Test de recrutement RH"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="duree-test">Durée (minutes) *</Label>
+          <Input
+            id="duree-test"
+            type="number"
+            min={1}
+            max={180}
+            value={duree}
+            onChange={(e) => setDuree(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 max-w-2xl">
+        <strong>💡 Conseil :</strong> Pour les questions QCM (<em>Choix unique</em> ou <em>Cases à cocher</em>),
+        renseignez le champ <strong>"Correct answer"</strong> dans les propriétés de chaque question
+        (panneau de droite du Creator). Cela permet au système de calculer automatiquement le score des candidats.
+      </div>
+
+      <div className="border rounded-xl overflow-hidden" style={{ height: "600px" }}>
+        <SurveyCreatorComponent creator={creator} />
+      </div>
+
+      <Button onClick={handleSauvegarder} className="bg-[#0A2463] hover:bg-[#1a3a8f]">
+        Enregistrer le test
+      </Button>
+
+      {/* Dialog lien généré */}
+      <Dialog open={sauvegarde} onOpenChange={setSauvegarde}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#0A2463]">✅ Test enregistré !</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600 mb-3">
+            Partagez ce lien avec vos candidats :
+          </p>
+          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-3">
+            <span className="text-xs text-gray-700 break-all flex-1">{lienGenere}</span>
+            <Button size="sm" variant="outline" onClick={handleCopier} className="shrink-0">
+              <Copy size={14} className="mr-1" />
+              {copie ? "Copié !" : "Copier"}
+            </Button>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setSauvegarde(false)}>Fermer</Button>
+            <Button className="bg-[#0A2463] hover:bg-[#1a3a8f]" onClick={handleNouveauTest}>
+              Créer un nouveau test
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TAB 2 — MES TESTS
+═══════════════════════════════════════════════════════════ */
+function TabMesTests() {
+  const [tests, setTests] = useState([])
+  const [chargement, setChargement] = useState(true)
+  const [apercu, setApercu] = useState(null)
+  const [suppression, setSuppression] = useState(null)
+  const [copie, setCopie] = useState(null)
+
+  useEffect(() => { chargerTests() }, [])
+
+  async function chargerTests() {
+    setChargement(true)
+    const snap = await getDocs(query(collection(db, "tests"), orderBy("createdAt", "desc")))
+    setTests(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+    setChargement(false)
+  }
+
+  async function toggleActif(test) {
+    await updateDoc(doc(db, "tests", test.id), { actif: !test.actif })
+    setTests((prev) => prev.map((t) => t.id === test.id ? { ...t, actif: !t.actif } : t))
+  }
+
+  async function supprimerTest(id) {
+    await deleteDoc(doc(db, "tests", id))
+    setTests((prev) => prev.filter((t) => t.id !== id))
+    setSuppression(null)
+  }
+
+  function copierLien(id) {
+    navigator.clipboard.writeText(lienEvaluation(id))
+    setCopie(id)
+    setTimeout(() => setCopie(null), 2000)
+  }
+
+  if (chargement) return <p className="text-center py-12 text-gray-500">Chargement…</p>
+  if (!tests.length) return (
+    <div className="text-center py-16 text-gray-400">
+      <ClipboardList size={48} className="mx-auto mb-4 opacity-30" />
+      <p>Aucun test créé pour l'instant.</p>
+    </div>
+  )
+
+  return (
+    <>
+      <div className="rounded-xl border overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Titre</TableHead>
+              <TableHead>Durée</TableHead>
+              <TableHead>Questions</TableHead>
+              <TableHead>Statut</TableHead>
+              <TableHead>Date</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {tests.map((t) => (
+              <TableRow key={t.id}>
+                <TableCell className="font-medium">{t.titre}</TableCell>
+                <TableCell>{t.duree} min</TableCell>
+                <TableCell>{t.nombreQuestions ?? "—"}</TableCell>
+                <TableCell>
+                  <Badge variant={t.actif ? "default" : "secondary"}
+                    className={t.actif ? "bg-green-100 text-green-700 border-green-200" : ""}>
+                    {t.actif ? "Actif" : "Inactif"}
+                  </Badge>
+                </TableCell>
+                <TableCell>{formatDate(t.createdAt)}</TableCell>
+                <TableCell className="text-right">
+                  <div className="flex items-center justify-end gap-1">
+                    <Button size="icon" variant="ghost" title="Copier le lien" onClick={() => copierLien(t.id)}>
+                      <Copy size={15} className={copie === t.id ? "text-green-600" : ""} />
+                    </Button>
+                    <Button size="icon" variant="ghost" title="Aperçu" onClick={() => setApercu(t)}>
+                      <Eye size={15} />
+                    </Button>
+                    <Button size="icon" variant="ghost" title={t.actif ? "Désactiver" : "Activer"} onClick={() => toggleActif(t)}>
+                      {t.actif
+                        ? <ToggleRight size={18} className="text-green-600" />
+                        : <ToggleLeft size={18} className="text-gray-400" />}
+                    </Button>
+                    <Button size="icon" variant="ghost" title="Supprimer" onClick={() => setSuppression(t)}>
+                      <Trash2 size={15} className="text-red-500" />
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Dialog aperçu */}
+      <Dialog open={!!apercu} onOpenChange={() => setApercu(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Aperçu — {apercu?.titre}</DialogTitle>
+          </DialogHeader>
+          {apercu && (() => {
+            const model = new Model(apercu.surveyJSON)
+            model.mode = "display"
+            return <Survey model={model} />
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog suppression */}
+      <Dialog open={!!suppression} onOpenChange={() => setSuppression(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Confirmer la suppression</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            Supprimer <strong>{suppression?.titre}</strong> ? Cette action est irréversible.
+          </p>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setSuppression(null)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => supprimerTest(suppression.id)}>
+              Supprimer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
+   TAB 3 — RÉSULTATS
+═══════════════════════════════════════════════════════════ */
+function TabResultats() {
+  const [resultats, setResultats] = useState([])
+  const [tests, setTests] = useState({})
+  const [chargement, setChargement] = useState(true)
+  const [detail, setDetail] = useState(null)
+
+  useEffect(() => { chargerResultats() }, [])
+
+  async function chargerResultats() {
+    setChargement(true)
+    const [snapR, snapT] = await Promise.all([
+      getDocs(query(collection(db, "resultats"), orderBy("createdAt", "desc"))),
+      getDocs(collection(db, "tests")),
+    ])
+    const testsMap = {}
+    snapT.docs.forEach((d) => { testsMap[d.id] = d.data() })
+    setTests(testsMap)
+    setResultats(snapR.docs.map((d) => ({ id: d.id, ...d.data() })))
+    setChargement(false)
+  }
+
+  function exporterCSV() {
+    const lignes = [
+      ["Candidat", "Email", "Test", "Score", "Bonnes réponses", "Temps utilisé (s)", "Date"],
+      ...resultats.map((r) => [
+        r.nomCandidat,
+        r.emailCandidat,
+        r.titreDuTest,
+        `${r.score ?? 0}%`,
+        `${r.bonnesReponses ?? 0}/${r.totalQuestionsNotees ?? 0}`,
+        r.tempsUtilise ?? 0,
+        formatDate(r.createdAt),
+      ]),
+    ]
+    const csv = lignes.map((l) => l.map((v) => `"${v}"`).join(",")).join("\n")
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "resultats_acn.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  /* Statistiques */
+  const total = resultats.length
+  const scoreMoyen = total
+    ? Math.round(resultats.reduce((s, r) => s + (r.score ?? 0), 0) / total)
+    : 0
+  const tauxReussite = total
+    ? Math.round((resultats.filter((r) => (r.score ?? 0) >= 70).length / total) * 100)
+    : 0
+  const testsActifs = Object.values(tests).filter((t) => t.actif).length
+
+  const stats = [
+    { label: "Total candidats", value: total, color: "text-[#0A2463]" },
+    { label: "Score moyen", value: `${scoreMoyen}%`, color: "text-sky-600" },
+    { label: "Taux de réussite", value: `${tauxReussite}%`, color: "text-green-600" },
+    { label: "Tests actifs", value: testsActifs, color: "text-amber-600" },
+  ]
+
+  if (chargement) return <p className="text-center py-12 text-gray-500">Chargement…</p>
+
+  return (
+    <>
+      {/* Statistiques */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {stats.map(({ label, value, color }) => (
+          <Card key={label}>
+            <CardContent className="pt-6 text-center">
+              <p className={`text-3xl font-black ${color}`}>{value}</p>
+              <p className="text-sm text-gray-500 mt-1">{label}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {resultats.length === 0 ? (
+        <div className="text-center py-16 text-gray-400">
+          <BarChart2 size={48} className="mx-auto mb-4 opacity-30" />
+          <p>Aucun résultat pour l'instant.</p>
+        </div>
+      ) : (
+        <>
+          <div className="flex justify-end mb-4">
+            <Button variant="outline" onClick={exporterCSV}>
+              <Download size={15} className="mr-2" /> Exporter CSV
+            </Button>
+          </div>
+          <div className="rounded-xl border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Candidat</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Test</TableHead>
+                  <TableHead>Score</TableHead>
+                  <TableHead>Temps</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead className="text-right">Détail</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {resultats.map((r) => (
+                  <TableRow key={r.id}>
+                    <TableCell className="font-medium">{r.nomCandidat}</TableCell>
+                    <TableCell className="text-gray-500 text-sm">{r.emailCandidat}</TableCell>
+                    <TableCell>{r.titreDuTest}</TableCell>
+                    <TableCell>
+                      <Badge className={
+                        (r.score ?? 0) >= 70
+                          ? "bg-green-100 text-green-700 border-green-200"
+                          : (r.score ?? 0) >= 50
+                            ? "bg-orange-100 text-orange-700"
+                            : "bg-red-100 text-red-700"
+                      }>
+                        {r.score ?? 0}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-gray-500">
+                      {Math.floor((r.tempsUtilise ?? 0) / 60)}m{String((r.tempsUtilise ?? 0) % 60).padStart(2, "0")}s
+                    </TableCell>
+                    <TableCell>{formatDate(r.createdAt)}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="icon" variant="ghost" onClick={() => setDetail(r)}>
+                        <Eye size={15} />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      )}
+
+      {/* Dialog détail résultat */}
+      <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{detail?.nomCandidat} — {detail?.titreDuTest}</DialogTitle>
+          </DialogHeader>
+          {detail && (() => {
+            const model = new Model(detail.surveyJSON)
+            model.data = detail.reponses
+            model.mode = "display"
+            return (
+              <div className="space-y-4">
+                <div className="flex gap-4 text-sm text-gray-600">
+                  <span>Score : <strong>{detail.score}%</strong></span>
+                  <span>Bonnes réponses : <strong>{detail.bonnesReponses}/{detail.totalQuestionsNotees}</strong></span>
+                </div>
+                <Separator />
+                <Survey model={model} />
+              </div>
+            )
+          })()}
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
+   DASHBOARD PRINCIPAL
+═══════════════════════════════════════════════════════════ */
+export default function AdminDashboard() {
+  const [onglet, setOnglet] = useState("creer")
+  const navigate = useNavigate()
+
+  function seDeconnecter() {
+    sessionStorage.removeItem("admin_auth")
+    navigate("/admin/login")
+  }
+
+  const navItems = [
+    { id: "creer", icon: PlusCircle, label: "Créer un test" },
+    { id: "tests", icon: ClipboardList, label: "Mes tests" },
+    { id: "resultats", icon: BarChart2, label: "Résultats" },
+  ]
+
+  return (
+    <div className="min-h-screen flex bg-gray-50">
+      {/* Sidebar */}
+      <aside className="w-64 shrink-0 bg-[#0A2463] text-white flex flex-col">
+        <div className="p-6 border-b border-white/10">
+          <p className="font-black text-lg tracking-wide">ACN Admin</p>
+          <p className="text-sky-300 text-xs mt-1">Espace administrateur</p>
+        </div>
+
+        <nav className="flex-1 p-4 space-y-1">
+          {navItems.map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              onClick={() => setOnglet(id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+                onglet === id
+                  ? "bg-white/15 text-white"
+                  : "text-sky-200 hover:bg-white/10 hover:text-white"
+              }`}
+            >
+              <Icon size={18} />
+              {label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-4 border-t border-white/10">
+          <button
+            onClick={seDeconnecter}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm text-sky-200 hover:bg-white/10 hover:text-white transition-all"
+          >
+            <LogOut size={18} />
+            Déconnexion
+          </button>
+        </div>
+      </aside>
+
+      {/* Zone principale */}
+      <main className="flex-1 p-8 overflow-auto">
+        <Tabs value={onglet} onValueChange={setOnglet}>
+          <TabsList className="mb-8">
+            <TabsTrigger value="creer">Créer un test</TabsTrigger>
+            <TabsTrigger value="tests">Mes tests</TabsTrigger>
+            <TabsTrigger value="resultats">Résultats</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="creer">
+            <TabCreerTest />
+          </TabsContent>
+          <TabsContent value="tests">
+            <TabMesTests />
+          </TabsContent>
+          <TabsContent value="resultats">
+            <TabResultats />
+          </TabsContent>
+        </Tabs>
+      </main>
+    </div>
+  )
+}
