@@ -9,7 +9,7 @@ import { Model } from "survey-core"
 import { Survey } from "survey-react-ui"
 import {
   collection, doc, addDoc, getDocs, updateDoc, deleteDoc,
-  serverTimestamp, query, orderBy, where, writeBatch,
+  serverTimestamp, query, orderBy, writeBatch,
 } from "firebase/firestore"
 import { db } from "@/firebase"
 
@@ -50,6 +50,161 @@ function lienEvaluation(testId) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   Extraire toutes les questions notables du surveyJSON
+═══════════════════════════════════════════════════════════ */
+function extraireQuestionsQCM(surveyJSON) {
+  const pages = surveyJSON.pages || []
+  return pages.flatMap((p) =>
+    (p.elements || []).filter((el) => ["radiogroup", "checkbox"].includes(el.type))
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Dialog — Configurer les bonnes réponses
+═══════════════════════════════════════════════════════════ */
+function DialogBonnesReponses({ open, onOpenChange, surveyJSON, onConfirmer }) {
+  const questions = extraireQuestionsQCM(surveyJSON)
+  // État local : { [questionName]: valeur ou tableau }
+  const [reponses, setReponses] = useState(() => {
+    const init = {}
+    questions.forEach((q) => { init[q.name] = q.correctAnswer ?? (q.type === "checkbox" ? [] : "") })
+    return init
+  })
+
+  function toggleCheckbox(name, valeur) {
+    setReponses((prev) => {
+      const actuel = Array.isArray(prev[name]) ? prev[name] : []
+      return {
+        ...prev,
+        [name]: actuel.includes(valeur)
+          ? actuel.filter((v) => v !== valeur)
+          : [...actuel, valeur],
+      }
+    })
+  }
+
+  function handleConfirmer() {
+    // Injecter correctAnswer dans chaque question du surveyJSON
+    const json = JSON.parse(JSON.stringify(surveyJSON))
+    ;(json.pages || []).forEach((page) => {
+      ;(page.elements || []).forEach((el) => {
+        if (reponses[el.name] !== undefined) {
+          el.correctAnswer = reponses[el.name]
+        }
+      })
+    })
+    onConfirmer(json)
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-[#0A2463]">🎯 Configurer les bonnes réponses</DialogTitle>
+        </DialogHeader>
+
+        {questions.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <p className="text-4xl mb-3">📝</p>
+            <p className="font-medium text-gray-600">Aucune question QCM détectée.</p>
+            <p className="text-sm mt-1">
+              Seules les questions <strong>Choix unique</strong> et <strong>Cases à cocher</strong>
+              sont notées automatiquement. Vous pouvez enregistrer sans configurer de réponses.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6 py-2">
+            {questions.map((q, idx) => {
+              const choices = q.choices || []
+              return (
+                <div key={q.name} className="border rounded-xl p-4 bg-gray-50">
+                  <p className="font-semibold text-gray-800 mb-1 text-sm">
+                    <span className="inline-block bg-[#0A2463] text-white text-xs rounded-full w-5 h-5 text-center leading-5 mr-2">{idx + 1}</span>
+                    {q.title || q.name}
+                  </p>
+                  <p className="text-xs text-gray-400 mb-3">
+                    {q.type === "radiogroup" ? "Choix unique — sélectionnez la bonne réponse" : "Cases à cocher — sélectionnez toutes les bonnes réponses"}
+                  </p>
+
+                  {q.type === "radiogroup" ? (
+                    <div className="space-y-2">
+                      {choices.map((c) => {
+                        const val = typeof c === "object" ? c.value : c
+                        const label = typeof c === "object" ? (c.text || c.value) : c
+                        const selectionne = reponses[q.name] === val
+                        return (
+                          <label
+                            key={val}
+                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                              selectionne
+                                ? "border-green-500 bg-green-50"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={q.name}
+                              value={val}
+                              checked={selectionne}
+                              onChange={() => setReponses((p) => ({ ...p, [q.name]: val }))}
+                              className="accent-green-600"
+                            />
+                            <span className={`text-sm ${selectionne ? "font-semibold text-green-700" : "text-gray-700"}`}>
+                              {label}
+                            </span>
+                            {selectionne && <span className="ml-auto text-green-600 text-xs font-bold">✓ Bonne réponse</span>}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {choices.map((c) => {
+                        const val = typeof c === "object" ? c.value : c
+                        const label = typeof c === "object" ? (c.text || c.value) : c
+                        const selectionne = Array.isArray(reponses[q.name]) && reponses[q.name].includes(val)
+                        return (
+                          <label
+                            key={val}
+                            className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                              selectionne
+                                ? "border-green-500 bg-green-50"
+                                : "border-gray-200 bg-white hover:border-gray-300"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectionne}
+                              onChange={() => toggleCheckbox(q.name, val)}
+                              className="accent-green-600"
+                            />
+                            <span className={`text-sm ${selectionne ? "font-semibold text-green-700" : "text-gray-700"}`}>
+                              {label}
+                            </span>
+                            {selectionne && <span className="ml-auto text-green-600 text-xs font-bold">✓</span>}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
+          <Button className="bg-[#0A2463] hover:bg-[#1a3a8f]" onClick={handleConfirmer}>
+            Valider les réponses
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
    TAB 1 — CRÉER UN TEST
 ═══════════════════════════════════════════════════════════ */
 function TabCreerTest() {
@@ -58,6 +213,7 @@ function TabCreerTest() {
   const [sauvegarde, setSauvegarde] = useState(false)
   const [lienGenere, setLienGenere] = useState("")
   const [copie, setCopie] = useState(false)
+  const [dialogReponses, setDialogReponses] = useState(false)
   const creatorRef = useRef(null)
 
   if (!creatorRef.current) {
@@ -65,25 +221,29 @@ function TabCreerTest() {
   }
   const creator = creatorRef.current
 
-  async function handleSauvegarder() {
+  /* Étape 1 : ouvrir le dialog des bonnes réponses */
+  function handleOuvrirReponses() {
     if (!titre.trim()) { alert("Veuillez saisir un titre pour le test."); return }
     if (!duree || duree < 1) { alert("Veuillez saisir une durée valide."); return }
+    const pages = creator.JSON.pages || []
+    const total = pages.reduce((acc, p) => acc + (p.elements?.length ?? 0), 0)
+    if (total === 0) { alert("Ajoutez au moins une question dans le Creator."); return }
+    setDialogReponses(true)
+  }
 
-    const surveyJSON = creator.JSON
-    const pages = surveyJSON.pages || []
-    const nombreQuestions = pages.reduce(
-      (acc, p) => acc + (p.elements ? p.elements.length : 0), 0
-    )
-
+  /* Étape 2 : valider les réponses → enregistrer dans Firestore */
+  async function handleConfirmerReponses(jsonFinal) {
+    setDialogReponses(false)
+    const pages = jsonFinal.pages || []
+    const nombreQuestions = pages.reduce((acc, p) => acc + (p.elements?.length ?? 0), 0)
     const docRef = await addDoc(collection(db, "tests"), {
       titre: titre.trim(),
       duree: Number(duree),
-      surveyJSON,
+      surveyJSON: jsonFinal,
       createdAt: serverTimestamp(),
       actif: true,
       nombreQuestions,
     })
-
     setLienGenere(lienEvaluation(docRef.id))
     setSauvegarde(true)
   }
@@ -104,6 +264,19 @@ function TabCreerTest() {
 
   return (
     <div className="space-y-6">
+      {/* Indicateur d'étapes */}
+      <div className="flex items-center gap-3 max-w-2xl">
+        <div className="flex items-center gap-2">
+          <span className="w-7 h-7 rounded-full bg-[#0A2463] text-white text-xs font-black flex items-center justify-center">1</span>
+          <span className="text-sm font-semibold text-[#0A2463]">Créer les questions</span>
+        </div>
+        <div className="flex-1 h-px bg-gray-300" />
+        <div className="flex items-center gap-2">
+          <span className="w-7 h-7 rounded-full bg-gray-200 text-gray-500 text-xs font-black flex items-center justify-center">2</span>
+          <span className="text-sm font-semibold text-gray-400">Configurer les bonnes réponses</span>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl">
         <div className="space-y-1.5">
           <Label htmlFor="titre-test">Titre du test *</Label>
@@ -127,19 +300,23 @@ function TabCreerTest() {
         </div>
       </div>
 
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 max-w-2xl">
-        <strong>💡 Conseil :</strong> Pour les questions QCM (<em>Choix unique</em> ou <em>Cases à cocher</em>),
-        renseignez le champ <strong>"Correct answer"</strong> dans les propriétés de chaque question
-        (panneau de droite du Creator). Cela permet au système de calculer automatiquement le score des candidats.
-      </div>
-
       <div className="border rounded-xl overflow-hidden" style={{ height: "600px" }}>
         <SurveyCreatorComponent creator={creator} />
       </div>
 
-      <Button onClick={handleSauvegarder} className="bg-[#0A2463] hover:bg-[#1a3a8f]">
-        Enregistrer le test
+      <Button onClick={handleOuvrirReponses} className="bg-[#0A2463] hover:bg-[#1a3a8f]">
+        Étape 2 — Configurer les bonnes réponses →
       </Button>
+
+      {/* Dialog bonnes réponses */}
+      {dialogReponses && (
+        <DialogBonnesReponses
+          open={dialogReponses}
+          onOpenChange={setDialogReponses}
+          surveyJSON={creator.JSON}
+          onConfirmer={handleConfirmerReponses}
+        />
+      )}
 
       {/* Dialog lien généré */}
       <Dialog open={sauvegarde} onOpenChange={setSauvegarde}>
@@ -147,9 +324,7 @@ function TabCreerTest() {
           <DialogHeader>
             <DialogTitle className="text-[#0A2463]">✅ Test enregistré !</DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600 mb-3">
-            Partagez ce lien avec vos candidats :
-          </p>
+          <p className="text-sm text-gray-600 mb-3">Partagez ce lien avec vos candidats :</p>
           <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-3">
             <span className="text-xs text-gray-700 break-all flex-1">{lienGenere}</span>
             <Button size="sm" variant="outline" onClick={handleCopier} className="shrink-0">
