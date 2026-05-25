@@ -8,15 +8,15 @@ import { SurveyCreatorComponent, SurveyCreator } from "survey-creator-react"
 import { Model } from "survey-core"
 import { Survey } from "survey-react-ui"
 import {
-  collection, doc, addDoc, getDocs, getDoc, updateDoc, deleteDoc,
-  serverTimestamp, query, orderBy,
+  collection, doc, addDoc, getDocs, updateDoc, deleteDoc,
+  serverTimestamp, query, orderBy, where, writeBatch,
 } from "firebase/firestore"
 import { db } from "@/firebase"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -301,35 +301,61 @@ function TabMesTests() {
 
 /* ═══════════════════════════════════════════════════════════
    TAB 3 — RÉSULTATS
+   • Filtre par test
+   • Suppression individuelle
+   • Vider tous les résultats d'un test
 ═══════════════════════════════════════════════════════════ */
 function TabResultats() {
-  const [resultats, setResultats] = useState([])
-  const [tests, setTests] = useState({})
+  const [tous, setTous] = useState([])          // tous les résultats chargés
+  const [tests, setTests] = useState([])         // liste des tests pour le filtre
+  const [testSelectionne, setTestSelectionne] = useState("tous")
   const [chargement, setChargement] = useState(true)
   const [detail, setDetail] = useState(null)
+  const [suppressionUn, setSuppressionUn] = useState(null)   // un résultat
+  const [viderConfirm, setViderConfirm] = useState(false)    // vider la sélection
 
-  useEffect(() => { chargerResultats() }, [])
+  useEffect(() => { chargerDonnees() }, [])
 
-  async function chargerResultats() {
+  async function chargerDonnees() {
     setChargement(true)
     const [snapR, snapT] = await Promise.all([
       getDocs(query(collection(db, "resultats"), orderBy("createdAt", "desc"))),
-      getDocs(collection(db, "tests")),
+      getDocs(query(collection(db, "tests"), orderBy("createdAt", "desc"))),
     ])
-    const testsMap = {}
-    snapT.docs.forEach((d) => { testsMap[d.id] = d.data() })
-    setTests(testsMap)
-    setResultats(snapR.docs.map((d) => ({ id: d.id, ...d.data() })))
+    setTests(snapT.docs.map((d) => ({ id: d.id, ...d.data() })))
+    setTous(snapR.docs.map((d) => ({ id: d.id, ...d.data() })))
     setChargement(false)
   }
 
+  /* Résultats filtrés selon le test sélectionné */
+  const resultats = testSelectionne === "tous"
+    ? tous
+    : tous.filter((r) => r.testId === testSelectionne)
+
+  /* Supprimer un seul résultat */
+  async function supprimerUn(id) {
+    await deleteDoc(doc(db, "resultats", id))
+    setTous((prev) => prev.filter((r) => r.id !== id))
+    setSuppressionUn(null)
+  }
+
+  /* Vider tous les résultats du filtre actuel (par lots de 500) */
+  async function viderListe() {
+    const aSupprimer = resultats
+    const batch = writeBatch(db)
+    aSupprimer.forEach((r) => batch.delete(doc(db, "resultats", r.id)))
+    await batch.commit()
+    const idsSupprimes = new Set(aSupprimer.map((r) => r.id))
+    setTous((prev) => prev.filter((r) => !idsSupprimes.has(r.id)))
+    setViderConfirm(false)
+  }
+
+  /* Export CSV des résultats filtrés */
   function exporterCSV() {
     const lignes = [
       ["Candidat", "Email", "Test", "Score", "Bonnes réponses", "Temps utilisé (s)", "Date"],
       ...resultats.map((r) => [
-        r.nomCandidat,
-        r.emailCandidat,
-        r.titreDuTest,
+        r.nomCandidat, r.emailCandidat, r.titreDuTest,
         `${r.score ?? 0}%`,
         `${r.bonnesReponses ?? 0}/${r.totalQuestionsNotees ?? 0}`,
         r.tempsUtilise ?? 0,
@@ -339,25 +365,19 @@ function TabResultats() {
     const csv = lignes.map((l) => l.map((v) => `"${v}"`).join(",")).join("\n")
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "resultats_acn.csv"
-    a.click()
-    URL.revokeObjectURL(url)
+    const a = document.createElement("a"); a.href = url
+    a.download = `resultats_${testSelectionne === "tous" ? "tous" : testSelectionne}.csv`
+    a.click(); URL.revokeObjectURL(url)
   }
 
-  /* Statistiques */
+  /* Statistiques sur les résultats filtrés */
   const total = resultats.length
-  const scoreMoyen = total
-    ? Math.round(resultats.reduce((s, r) => s + (r.score ?? 0), 0) / total)
-    : 0
-  const tauxReussite = total
-    ? Math.round((resultats.filter((r) => (r.score ?? 0) >= 70).length / total) * 100)
-    : 0
-  const testsActifs = Object.values(tests).filter((t) => t.actif).length
+  const scoreMoyen = total ? Math.round(resultats.reduce((s, r) => s + (r.score ?? 0), 0) / total) : 0
+  const tauxReussite = total ? Math.round((resultats.filter((r) => (r.score ?? 0) >= 70).length / total) * 100) : 0
+  const testsActifs = tests.filter((t) => t.actif).length
 
   const stats = [
-    { label: "Total candidats", value: total, color: "text-[#0A2463]" },
+    { label: "Candidats", value: total, color: "text-[#0A2463]" },
     { label: "Score moyen", value: `${scoreMoyen}%`, color: "text-sky-600" },
     { label: "Taux de réussite", value: `${tauxReussite}%`, color: "text-green-600" },
     { label: "Tests actifs", value: testsActifs, color: "text-amber-600" },
@@ -368,7 +388,7 @@ function TabResultats() {
   return (
     <>
       {/* Statistiques */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {stats.map(({ label, value, color }) => (
           <Card key={label}>
             <CardContent className="pt-6 text-center">
@@ -379,66 +399,95 @@ function TabResultats() {
         ))}
       </div>
 
+      {/* Barre de filtres + actions */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        {/* Filtre par test */}
+        <select
+          value={testSelectionne}
+          onChange={(e) => setTestSelectionne(e.target.value)}
+          className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#0A2463]/30 flex-1 max-w-xs"
+        >
+          <option value="tous">Tous les tests ({tous.length} résultats)</option>
+          {tests.map((t) => (
+            <option key={t.id} value={t.id}>
+              {t.titre} ({tous.filter((r) => r.testId === t.id).length} résultats)
+            </option>
+          ))}
+        </select>
+
+        <div className="flex items-center gap-2 ml-auto">
+          <Button variant="outline" onClick={exporterCSV} disabled={resultats.length === 0}>
+            <Download size={14} className="mr-1.5" /> Exporter CSV
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={() => setViderConfirm(true)}
+            disabled={resultats.length === 0}
+          >
+            <Trash2 size={14} className="mr-1.5" />
+            Vider la liste
+          </Button>
+        </div>
+      </div>
+
       {resultats.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <BarChart2 size={48} className="mx-auto mb-4 opacity-30" />
-          <p>Aucun résultat pour l'instant.</p>
+          <p>Aucun résultat{testSelectionne !== "tous" ? " pour ce test" : ""}.</p>
         </div>
       ) : (
-        <>
-          <div className="flex justify-end mb-4">
-            <Button variant="outline" onClick={exporterCSV}>
-              <Download size={15} className="mr-2" /> Exporter CSV
-            </Button>
-          </div>
-          <div className="rounded-xl border overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Candidat</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Test</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Temps</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead className="text-right">Détail</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {resultats.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-medium">{r.nomCandidat}</TableCell>
-                    <TableCell className="text-gray-500 text-sm">{r.emailCandidat}</TableCell>
-                    <TableCell>{r.titreDuTest}</TableCell>
-                    <TableCell>
-                      <Badge className={
-                        (r.score ?? 0) >= 70
-                          ? "bg-green-100 text-green-700 border-green-200"
-                          : (r.score ?? 0) >= 50
-                            ? "bg-orange-100 text-orange-700"
-                            : "bg-red-100 text-red-700"
-                      }>
-                        {r.score ?? 0}%
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm text-gray-500">
-                      {Math.floor((r.tempsUtilise ?? 0) / 60)}m{String((r.tempsUtilise ?? 0) % 60).padStart(2, "0")}s
-                    </TableCell>
-                    <TableCell>{formatDate(r.createdAt)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button size="icon" variant="ghost" onClick={() => setDetail(r)}>
+        <div className="rounded-xl border overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Candidat</TableHead>
+                <TableHead>Email</TableHead>
+                {testSelectionne === "tous" && <TableHead>Test</TableHead>}
+                <TableHead>Score</TableHead>
+                <TableHead>Temps</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {resultats.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">{r.nomCandidat}</TableCell>
+                  <TableCell className="text-gray-500 text-sm">{r.emailCandidat}</TableCell>
+                  {testSelectionne === "tous" && (
+                    <TableCell className="text-sm text-gray-600 max-w-[160px] truncate">{r.titreDuTest}</TableCell>
+                  )}
+                  <TableCell>
+                    <Badge className={
+                      (r.score ?? 0) >= 70 ? "bg-green-100 text-green-700 border-green-200"
+                        : (r.score ?? 0) >= 50 ? "bg-orange-100 text-orange-700"
+                        : "bg-red-100 text-red-700"
+                    }>
+                      {r.score ?? 0}%
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-gray-500">
+                    {Math.floor((r.tempsUtilise ?? 0) / 60)}m{String((r.tempsUtilise ?? 0) % 60).padStart(2, "0")}s
+                  </TableCell>
+                  <TableCell>{formatDate(r.createdAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <Button size="icon" variant="ghost" title="Voir le détail" onClick={() => setDetail(r)}>
                         <Eye size={15} />
                       </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </>
+                      <Button size="icon" variant="ghost" title="Supprimer" onClick={() => setSuppressionUn(r)}>
+                        <Trash2 size={15} className="text-red-400" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
 
-      {/* Dialog détail résultat */}
+      {/* Dialog — détail résultat */}
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -459,6 +508,41 @@ function TabResultats() {
               </div>
             )
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog — supprimer un résultat */}
+      <Dialog open={!!suppressionUn} onOpenChange={() => setSuppressionUn(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Supprimer ce résultat ?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            Le résultat de <strong>{suppressionUn?.nomCandidat}</strong> sera définitivement supprimé.
+          </p>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setSuppressionUn(null)}>Annuler</Button>
+            <Button variant="destructive" onClick={() => supprimerUn(suppressionUn.id)}>Supprimer</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog — vider la liste */}
+      <Dialog open={viderConfirm} onOpenChange={setViderConfirm}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Vider la liste ?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">
+            {testSelectionne === "tous"
+              ? <>Vous allez supprimer <strong>tous les {resultats.length} résultats</strong>. Cette action est irréversible.</>
+              : <>Vous allez supprimer les <strong>{resultats.length} résultats</strong> du test sélectionné. Cette action est irréversible.</>
+            }
+          </p>
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => setViderConfirm(false)}>Annuler</Button>
+            <Button variant="destructive" onClick={viderListe}>Confirmer la suppression</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
