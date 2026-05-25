@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   PlusCircle, ClipboardList, BarChart2, LogOut,
-  Copy, Trash2, Eye, Download, ToggleLeft, ToggleRight,
+  Copy, Trash2, Eye, Download, ToggleLeft, ToggleRight, Pencil,
 } from "lucide-react"
 import { SurveyCreatorComponent, SurveyCreator } from "survey-creator-react"
 import { Model } from "survey-core"
@@ -47,6 +47,20 @@ function formatDate(ts) {
 /* ── Générer le lien candidat ───────────────────────────── */
 function lienEvaluation(testId) {
   return `${window.location.origin}/evaluation/${testId}`
+}
+
+/* ── Composant stable pour afficher un Survey en lecture seule ──
+   Utilise useRef pour éviter que SurveyJS modifie l'état global
+   au montage/démontage et provoque une page blanche.           */
+function SurveyDisplay({ surveyJSON, data }) {
+  const modelRef = useRef(null)
+  if (!modelRef.current) {
+    const m = new Model(surveyJSON)
+    if (data) m.data = data
+    m.mode = "display"
+    modelRef.current = m
+  }
+  return <Survey model={modelRef.current} />
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -205,6 +219,105 @@ function DialogBonnesReponses({ open, onOpenChange, surveyJSON, onConfirmer }) {
 }
 
 /* ═══════════════════════════════════════════════════════════
+   Dialog — Modifier un test existant
+═══════════════════════════════════════════════════════════ */
+function DialogEditerTest({ test, open, onOpenChange, onSauvegarde }) {
+  const [titre, setTitre] = useState(test.titre)
+  const [duree, setDuree] = useState(test.duree)
+  const [dialogReponses, setDialogReponses] = useState(false)
+  const [sauvegarde, setSauvegarde] = useState(false)
+  const creatorRef = useRef(null)
+
+  if (!creatorRef.current) {
+    const c = new SurveyCreator(creatorOptions)
+    c.JSON = test.surveyJSON
+    creatorRef.current = c
+  }
+  const creator = creatorRef.current
+
+  function handleOuvrirReponses() {
+    if (!titre.trim()) { alert("Veuillez saisir un titre."); return }
+    if (!duree || duree < 1) { alert("Veuillez saisir une durée valide."); return }
+    setDialogReponses(true)
+  }
+
+  async function handleConfirmerReponses(jsonFinal) {
+    setDialogReponses(false)
+    const pages = jsonFinal.pages || []
+    const nombreQuestions = pages.reduce((acc, p) => acc + (p.elements?.length ?? 0), 0)
+    await updateDoc(doc(db, "tests", test.id), {
+      titre: titre.trim(),
+      duree: Number(duree),
+      surveyJSON: jsonFinal,
+      nombreQuestions,
+    })
+    setSauvegarde(true)
+    onSauvegarde({ ...test, titre: titre.trim(), duree: Number(duree), surveyJSON: jsonFinal, nombreQuestions })
+  }
+
+  if (sauvegarde) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[#0A2463]">✅ Test modifié !</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600">Les modifications ont été enregistrées.</p>
+          <DialogFooter className="mt-4">
+            <Button className="bg-[#0A2463] hover:bg-[#1a3a8f]" onClick={() => onOpenChange(false)}>
+              Fermer
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    )
+  }
+
+  return (
+    <>
+      <Dialog open={open && !dialogReponses} onOpenChange={onOpenChange}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[#0A2463]">Modifier le test</DialogTitle>
+          </DialogHeader>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="space-y-1.5">
+              <Label>Titre du test *</Label>
+              <Input value={titre} onChange={(e) => setTitre(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Durée (minutes) *</Label>
+              <Input type="number" min={1} max={180} value={duree} onChange={(e) => setDuree(e.target.value)} />
+            </div>
+          </div>
+
+          <div className="border rounded-xl overflow-hidden" style={{ height: "540px" }}>
+            <SurveyCreatorComponent creator={creator} />
+          </div>
+
+          <DialogFooter className="mt-4">
+            <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
+            <Button className="bg-[#0A2463] hover:bg-[#1a3a8f]" onClick={handleOuvrirReponses}>
+              Étape 2 — Bonnes réponses →
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {dialogReponses && (
+        <DialogBonnesReponses
+          open={dialogReponses}
+          onOpenChange={setDialogReponses}
+          surveyJSON={creator.JSON}
+          onConfirmer={handleConfirmerReponses}
+        />
+      )}
+    </>
+  )
+}
+
+/* ═══════════════════════════════════════════════════════════
    TAB 1 — CRÉER UN TEST
 ═══════════════════════════════════════════════════════════ */
 function TabCreerTest() {
@@ -351,6 +464,7 @@ function TabMesTests() {
   const [tests, setTests] = useState([])
   const [chargement, setChargement] = useState(true)
   const [apercu, setApercu] = useState(null)
+  const [edition, setEdition] = useState(null)
   const [suppression, setSuppression] = useState(null)
   const [copie, setCopie] = useState(null)
 
@@ -423,6 +537,9 @@ function TabMesTests() {
                     <Button size="icon" variant="ghost" title="Aperçu" onClick={() => setApercu(t)}>
                       <Eye size={15} />
                     </Button>
+                    <Button size="icon" variant="ghost" title="Modifier" onClick={() => setEdition(t)}>
+                      <Pencil size={15} className="text-sky-600" />
+                    </Button>
                     <Button size="icon" variant="ghost" title={t.actif ? "Désactiver" : "Activer"} onClick={() => toggleActif(t)}>
                       {t.actif
                         ? <ToggleRight size={18} className="text-green-600" />
@@ -439,19 +556,29 @@ function TabMesTests() {
         </Table>
       </div>
 
-      {/* Dialog aperçu */}
+      {/* Dialog aperçu — SurveyDisplay stable, évite la page blanche */}
       <Dialog open={!!apercu} onOpenChange={() => setApercu(null)}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Aperçu — {apercu?.titre}</DialogTitle>
           </DialogHeader>
-          {apercu && (() => {
-            const model = new Model(apercu.surveyJSON)
-            model.mode = "display"
-            return <Survey model={model} />
-          })()}
+          {apercu && <SurveyDisplay key={apercu.id} surveyJSON={apercu.surveyJSON} />}
         </DialogContent>
       </Dialog>
+
+      {/* Dialog modification */}
+      {edition && (
+        <DialogEditerTest
+          key={edition.id}
+          test={edition}
+          open={!!edition}
+          onOpenChange={(v) => { if (!v) setEdition(null) }}
+          onSauvegarde={(testMaj) => {
+            setTests((prev) => prev.map((t) => t.id === testMaj.id ? testMaj : t))
+            setEdition(null)
+          }}
+        />
+      )}
 
       {/* Dialog suppression */}
       <Dialog open={!!suppression} onOpenChange={() => setSuppression(null)}>
@@ -662,27 +789,22 @@ function TabResultats() {
         </div>
       )}
 
-      {/* Dialog — détail résultat */}
+      {/* Dialog — détail résultat — SurveyDisplay stable, évite la page blanche */}
       <Dialog open={!!detail} onOpenChange={() => setDetail(null)}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{detail?.nomCandidat} — {detail?.titreDuTest}</DialogTitle>
           </DialogHeader>
-          {detail && (() => {
-            const model = new Model(detail.surveyJSON)
-            model.data = detail.reponses
-            model.mode = "display"
-            return (
-              <div className="space-y-4">
-                <div className="flex gap-4 text-sm text-gray-600">
-                  <span>Score : <strong>{detail.score}%</strong></span>
-                  <span>Bonnes réponses : <strong>{detail.bonnesReponses}/{detail.totalQuestionsNotees}</strong></span>
-                </div>
-                <Separator />
-                <Survey model={model} />
+          {detail && (
+            <div className="space-y-4">
+              <div className="flex gap-4 text-sm text-gray-600">
+                <span>Score : <strong>{detail.score}%</strong></span>
+                <span>Bonnes réponses : <strong>{detail.bonnesReponses}/{detail.totalQuestionsNotees}</strong></span>
               </div>
-            )
-          })()}
+              <Separator />
+              <SurveyDisplay key={detail.id} surveyJSON={detail.surveyJSON} data={detail.reponses} />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
