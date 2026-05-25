@@ -7,6 +7,7 @@ const navLinks = [
   { label: 'À Propos', to: '/a-propos' },
   { label: 'Notre Expertise', to: '/expertise' },
   { label: 'Actualité', to: '/actualite' },
+  { label: 'Nos Services', to: '/demande' },
 ]
 
 export default function Navbar() {

@@ -6,6 +6,7 @@ import About from './pages/About'
 import Expertise from './pages/Expertise'
 import Actualite from './pages/Actualite'
 import Inscription from './pages/Inscription'
+import Demande from './pages/Demande'
 import AdminLogin from './pages/AdminLogin'
 import AdminDashboard from './pages/AdminDashboard'
 import Evaluation from './pages/Evaluation'
@@ -32,6 +33,7 @@ export default function App() {
         <Route path="/expertise" element={<PublicLayout><Expertise /></PublicLayout>} />
         <Route path="/actualite" element={<PublicLayout><Actualite /></PublicLayout>} />
         <Route path="/inscription" element={<PublicLayout><Inscription /></PublicLayout>} />
+        <Route path="/demande" element={<PublicLayout><Demande /></PublicLayout>} />
 
         {/* Espace admin — sans Navbar/Footer publique */}
         <Route path="/admin/login" element={<AdminLogin />} />
