@@ -11,7 +11,9 @@ const navLinks = [
 ]
 
 export default function Navbar() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false)      // bouton X / Menu
+  const [render, setRender] = useState(false)  // overlay présent dans le DOM
+  const [active, setActive] = useState(false)  // cercle ouvert (clip-path plein)
   const [scrolled, setScrolled] = useState(false)
   const { pathname } = useLocation()
 
@@ -20,6 +22,30 @@ export default function Navbar() {
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Verrouille le scroll de la page quand le menu plein écran est ouvert
+  useEffect(() => {
+    document.body.style.overflow = render ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [render])
+
+  const openMenu = () => {
+    setOpen(true)
+    setRender(true)
+    // double rAF : laisse le navigateur peindre l'état "cercle fermé" avant d'animer
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => setActive(true))
+    )
+  }
+
+  const closeMenu = () => {
+    setOpen(false)
+    setActive(false)
+    // attend la fin de l'animation circulaire avant de retirer du DOM
+    setTimeout(() => setRender(false), 650)
+  }
+
+  const toggleMenu = () => (open ? closeMenu() : openMenu())
 
   const isHome = pathname === '/'
 
@@ -79,35 +105,60 @@ export default function Navbar() {
 
         {/* Mobile toggle */}
         <button
-          className={`lg:hidden p-2 rounded-lg ${scrolled || !isHome ? 'text-gray-800' : 'text-white'}`}
-          onClick={() => setOpen(!open)}
+          aria-label={open ? 'Fermer le menu' : 'Ouvrir le menu'}
+          className={`lg:hidden relative z-[70] p-2 rounded-lg transition-colors ${
+            open ? 'text-white' : scrolled || !isHome ? 'text-gray-800' : 'text-white'
+          }`}
+          onClick={toggleMenu}
         >
-          {open ? <X size={24} /> : <Menu size={24} />}
+          {open ? <X size={26} /> : <Menu size={26} />}
         </button>
       </div>
 
-      {/* Mobile menu */}
-      {open && (
-        <div className="lg:hidden bg-white border-t shadow-xl px-6 py-6 flex flex-col gap-5">
-          {navLinks.map(({ label, to }) => (
+      {/* Mobile menu plein écran — révélation circulaire */}
+      {render && (
+        <div
+          className="lg:hidden fixed inset-0 z-[60] bg-gradient-to-br from-sky-700 via-sky-800 to-sky-950"
+          style={{
+            clipPath: active
+              ? 'circle(150% at calc(100% - 2.75rem) 2.75rem)'
+              : 'circle(0% at calc(100% - 2.75rem) 2.75rem)',
+            transition: 'clip-path 0.6s cubic-bezier(0.77, 0, 0.175, 1)',
+          }}
+        >
+          <nav className="h-full w-full flex flex-col items-center justify-center gap-7 px-8">
+            {navLinks.map(({ label, to }, i) => (
+              <Link
+                key={to}
+                to={to}
+                onClick={closeMenu}
+                style={{
+                  transition: 'opacity 0.4s ease, transform 0.4s ease',
+                  transitionDelay: active ? `${250 + i * 70}ms` : '0ms',
+                  opacity: active ? 1 : 0,
+                  transform: active ? 'translateY(0)' : 'translateY(20px)',
+                }}
+                className={`text-2xl font-bold tracking-wide text-white hover:text-yellow-300 ${
+                  pathname === to ? 'text-yellow-300' : ''
+                }`}
+              >
+                {label}
+              </Link>
+            ))}
             <Link
-              key={to}
-              to={to}
-              onClick={() => setOpen(false)}
-              className={`text-sm font-bold text-gray-700 hover:text-sky-600 border-b border-gray-100 pb-3 ${
-                pathname === to ? 'text-sky-600' : ''
-              }`}
+              to="/inscription"
+              onClick={closeMenu}
+              style={{
+                transition: 'opacity 0.4s ease, transform 0.4s ease',
+                transitionDelay: active ? `${250 + navLinks.length * 70}ms` : '0ms',
+                opacity: active ? 1 : 0,
+                transform: active ? 'translateY(0)' : 'translateY(20px)',
+              }}
+              className="btn-gold text-base mt-4 inline-block"
             >
-              {label}
+              INSCRIPTION
             </Link>
-          ))}
-          <Link
-            to="/inscription"
-            onClick={() => setOpen(false)}
-            className="btn-gold text-sm text-center inline-block"
-          >
-            INSCRIPTION
-          </Link>
+          </nav>
         </div>
       )}
     </header>
